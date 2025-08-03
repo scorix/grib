@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 )
 
 type section4 struct {
@@ -36,6 +37,29 @@ func (s *section4) ProductDefinitionTemplateNumber() uint8 {
 
 func (s *section4) CoordinateValues() []float32 {
 	return s.coordinateValues
+}
+
+func (s *section4) ReadSection(reader io.Reader) (Section, error) {
+	return NewSection4FromReader(reader)
+}
+
+func NewSection4FromReader(reader io.Reader) (Section, error) {
+	var length uint32
+	lengthBytes := make([]byte, 4)
+	_, err := io.ReadFull(reader, lengthBytes)
+	if err != nil {
+		return nil, err
+	}
+	length = binary.BigEndian.Uint32(lengthBytes)
+
+	data := make([]byte, length)
+	copy(data[:4], lengthBytes)
+	_, err = io.ReadFull(reader, data[4:])
+	if err != nil {
+		return nil, err
+	}
+
+	return NewSection4FromBytes(data)
 }
 
 func NewSection4FromBytes(data []byte) (Section4, error) {

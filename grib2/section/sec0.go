@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 )
 
 type section0 struct {
@@ -13,6 +14,18 @@ type section0 struct {
 	discipline  uint8
 	edition     uint8
 	totalLength uint64
+}
+
+func (s *section0) Length() uint32 {
+	return 16
+}
+
+func (s *section0) StartMarker() [4]byte {
+	return s.identifier
+}
+
+func (s *section0) SectionNumber() uint8 {
+	return 0
 }
 
 func (s *section0) Discipline() uint8 {
@@ -25,6 +38,20 @@ func (s *section0) Edition() uint8 {
 
 func (s *section0) TotalLength() uint64 {
 	return s.totalLength
+}
+
+func (s *section0) ReadSection(reader io.Reader) (Section, error) {
+	return NewSection0FromReader(reader)
+}
+
+func NewSection0FromReader(reader io.Reader) (Section, error) {
+	data := make([]byte, 16) // Section 0 is always 16 bytes
+	_, err := io.ReadFull(reader, data)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewSection0FromBytes(data)
 }
 
 func NewSection0FromBytes(data []byte) (Section0, error) {

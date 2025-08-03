@@ -2,6 +2,12 @@ package section
 
 import "io"
 
+type Section interface {
+	Length() uint32
+	SectionNumber() uint8
+	ReadSection(reader io.Reader) (Section, error)
+}
+
 // Section0 represents the GRIB2 Indicator Section (Section 0)
 // This section serves to identify the start of the record in a human readable form,
 // indicate the total length of the message, and indicate the Edition number of GRIB used
@@ -18,6 +24,8 @@ import "io"
 // | 9-16        | Total length of GRIB message in octets (All sections)           |
 // +-------------+------------------------------------------------------------------+
 type Section0 interface {
+	Section
+	StartMarker() [4]byte
 	Discipline() uint8
 	Edition() uint8
 	TotalLength() uint64
@@ -49,6 +57,7 @@ type Section0 interface {
 // | 22-N        | Reserved                                                                     |
 // +-------------+------------------------------------------------------------------------------+
 type Section1 interface {
+	Section
 	// Section information
 	Length() uint32
 	SectionNumber() uint8
@@ -92,6 +101,7 @@ type Section1 interface {
 // For example, NCEP subcenter 14 (MDL) uses octet 6 to indicate which
 // local use table to use.
 type Section2 interface {
+	Section
 	// Section information
 	Length() uint32
 	SectionNumber() uint8
@@ -122,6 +132,7 @@ type Section2 interface {
 // Note: The grid definition template varies based on the template number.
 // Common templates include lat/lon grids, Lambert conformal, and polar stereographic.
 type Section3 interface {
+	Section
 	// Section information
 	Length() uint32
 	SectionNumber() uint8
@@ -156,6 +167,7 @@ type Section3 interface {
 // Note: Coordinate values are used for hybrid coordinate vertical levels.
 // They are encoded as IEEE 32-bit floating point pairs when present.
 type Section4 interface {
+	Section
 	// Section information
 	Length() uint32
 	SectionNumber() uint8
@@ -186,6 +198,7 @@ type Section4 interface {
 // Note: The data representation template defines packing methods like
 // simple packing, complex packing, or IEEE floating point representation.
 type Section5 interface {
+	Section
 	// Section information
 	Length() uint32
 	SectionNumber() uint8
@@ -212,6 +225,7 @@ type Section5 interface {
 // Note: If octet 6 is not zero, the length of this section is 6 and
 // octets 7-nn are not present (no bit-map data).
 type Section6 interface {
+	Section
 	// Section information
 	Length() uint32
 	SectionNumber() uint8
@@ -241,6 +255,7 @@ type Section6 interface {
 //
 // Concurrency Safety: All methods are safe for concurrent use.
 type Section7 interface {
+	Section
 	// Section information
 	Length() uint32
 	SectionNumber() uint8
@@ -268,6 +283,7 @@ type Section7 interface {
 // Note: This section serves as a definitive end marker for the GRIB2 message
 // and helps validate that the message was read completely.
 type Section8 interface {
+	Section
 	// End section verification
 	EndMarker() [4]byte
 	IsValid() bool

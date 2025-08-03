@@ -1,4 +1,4 @@
-module github.com/scorix/grib2
+module github.com/scorix/grib/grib2
 
 go 1.24.4
 

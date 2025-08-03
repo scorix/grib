@@ -28,6 +28,20 @@ func (s *section2) LocalUseData() []byte {
 	return s.localUse
 }
 
+func (s *section2) ReadSection(reader io.Reader) (Section, error) {
+	return NewSection2FromReader(reader)
+}
+
+func NewSection2FromReader(reader io.Reader) (Section, error) {
+	data := bytes.NewBuffer(nil)
+	_, err := io.Copy(data, reader)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewSection2FromBytes(data.Bytes())
+}
+
 func NewSection2FromBytes(data []byte) (Section2, error) {
 	if len(data) < 4 {
 		return nil, fmt.Errorf("section2: data too short")

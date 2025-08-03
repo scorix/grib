@@ -3,7 +3,7 @@ package section_test
 import (
 	"testing"
 
-	"github.com/scorix/grib2/section"
+	"github.com/scorix/grib/grib2/section"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

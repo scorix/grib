@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 )
 
 type section5 struct {
@@ -31,6 +32,29 @@ func (s *section5) NumberOfDataPoints() uint32 {
 
 func (s *section5) DataRepresentationTemplateNumber() uint8 {
 	return uint8(s.dataRepresentationTemplateNumber)
+}
+
+func (s *section5) ReadSection(reader io.Reader) (Section, error) {
+	return NewSection5FromReader(reader)
+}
+
+func NewSection5FromReader(reader io.Reader) (Section, error) {
+	var length uint32
+	lengthBytes := make([]byte, 4)
+	_, err := io.ReadFull(reader, lengthBytes)
+	if err != nil {
+		return nil, err
+	}
+	length = binary.BigEndian.Uint32(lengthBytes)
+
+	data := make([]byte, length)
+	copy(data[:4], lengthBytes)
+	_, err = io.ReadFull(reader, data[4:])
+	if err != nil {
+		return nil, err
+	}
+
+	return NewSection5FromBytes(data)
 }
 
 func NewSection5FromBytes(data []byte) (Section5, error) {

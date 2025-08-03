@@ -10,7 +10,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/scorix/grib2/section"
+	"github.com/scorix/grib/grib2/section"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -42,8 +43,11 @@ func (s *Section7ReaderTestSuite) SetupSuite() {
 
 // testReaderCompatibility is a helper method that tests a reader implementation
 func (s *Section7ReaderTestSuite) testReaderCompatibility(reader io.Reader) {
-	section7, err := section.NewSection7FromReader(reader)
+	sec, err := section.NewSection7FromReader(reader)
 	s.Require().NoError(err)
+
+	section7, ok := sec.(section.Section7)
+	s.Require().True(ok)
 
 	s.Assert().Equal(uint8(7), section7.SectionNumber())
 	s.Assert().Equal(uint32(len(s.testData)), section7.DataSize())
@@ -174,10 +178,13 @@ func TestSection7_ConcurrencySafety(t *testing.T) {
 	sectionData = append(sectionData, testData...)
 
 	reader := bytes.NewReader(sectionData)
-	section7, err := section.NewSection7FromReader(reader)
+	sec, err := section.NewSection7FromReader(reader)
 	if err != nil {
 		t.Fatalf("Failed to create section7: %v", err)
 	}
+
+	section7, ok := sec.(section.Section7)
+	require.True(t, ok)
 
 	const numGoroutines = 10
 	var wg sync.WaitGroup

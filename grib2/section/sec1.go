@@ -89,6 +89,20 @@ func (s *section1) DataType() uint8 {
 	return s.productType
 }
 
+func (s *section1) ReadSection(reader io.Reader) (Section, error) {
+	return NewSection1FromReader(reader)
+}
+
+func NewSection1FromReader(reader io.Reader) (Section, error) {
+	data := make([]byte, 21) // Section 1 is always 21 bytes
+	_, err := io.ReadFull(reader, data)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewSection1FromBytes(data, true)
+}
+
 func NewSection1FromBytes(data []byte, keepReserved bool) (Section1, error) {
 	if len(data) < 21 {
 		return nil, fmt.Errorf("section1: data too short")

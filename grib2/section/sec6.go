@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 )
 
 type section6 struct {
@@ -34,6 +35,29 @@ func (s *section6) BitMap() []byte {
 
 func (s *section6) HasBitMap() bool {
 	return s.bitMapIndicator == 0
+}
+
+func (s *section6) ReadSection(reader io.Reader) (Section, error) {
+	return NewSection6FromReader(reader)
+}
+
+func NewSection6FromReader(reader io.Reader) (Section, error) {
+	var length uint32
+	lengthBytes := make([]byte, 4)
+	_, err := io.ReadFull(reader, lengthBytes)
+	if err != nil {
+		return nil, err
+	}
+	length = binary.BigEndian.Uint32(lengthBytes)
+
+	data := make([]byte, length)
+	copy(data[:4], lengthBytes)
+	_, err = io.ReadFull(reader, data[4:])
+	if err != nil {
+		return nil, err
+	}
+
+	return NewSection6FromBytes(data)
 }
 
 func NewSection6FromBytes(data []byte) (Section6, error) {

@@ -134,10 +134,7 @@ type section7Reader struct {
 
 func (r *section7Reader) Read(p []byte) (n int, err error) {
 	// Ensure we have enough data buffered
-	needed := r.offset + uint32(len(p))
-	if needed > r.section.dataSize {
-		needed = r.section.dataSize
-	}
+	needed := min(r.offset+uint32(len(p)), r.section.dataSize)
 
 	_, _ = r.section.readChunk(needed)
 
@@ -167,12 +164,16 @@ func (r *section7Reader) Read(p []byte) (n int, err error) {
 	return int(toCopy), nil
 }
 
+func (s *section7) ReadSection(reader io.Reader) (Section, error) {
+	return NewSection7FromReader(reader)
+}
+
 // NewSection7FromReader creates a Section7 from a reader positioned at the section start.
 // This reads the header (length and section number) and sets up smart buffering for the data.
 // Works with any io.Reader including HTTP response bodies, gzip readers, files, etc.
 //
 // The reader should be positioned at the beginning of the section (including header).
-func NewSection7FromReader(reader io.Reader) (Section7, error) {
+func NewSection7FromReader(reader io.Reader) (Section, error) {
 	var length uint32
 	var sectionNumber uint8
 
