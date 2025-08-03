@@ -101,3 +101,59 @@ func TestReader_EachMessage_EarlyStop(t *testing.T) {
 	// Should have called only once and stopped
 	assert.Equal(t, 1, callCount)
 }
+
+func TestReader_EachFlatMessage(t *testing.T) {
+	testData := getTestData(t)
+	r := reader.NewReader(bytes.NewReader(testData))
+
+	var flatMessages []reader.FlatMessage
+	var callCount int
+
+	err := r.EachFlatMessage(func(index int, flatMsg reader.FlatMessage) bool {
+		callCount++
+		flatMessages = append(flatMessages, flatMsg)
+		return true // Continue processing
+	})
+	require.NoError(t, err)
+
+	// Verify we got flattened messages
+	assert.Greater(t, callCount, 0, "Should have processed at least one flat message")
+	assert.Equal(t, len(flatMessages), callCount, "Should have same number of messages as calls")
+
+	t.Logf("Processed %d flattened messages", callCount)
+
+	// Verify each flat message has expected structure
+	for i, flatMsg := range flatMessages {
+		assert.Equal(t, i, flatMsg.Index, "Flat message index should be sequential")
+		assert.Greater(t, flatMsg.Length, uint64(0), "Flat message should have non-zero length")
+		assert.Equal(t, 2, flatMsg.Edition, "Should be GRIB2")
+
+		// Verify template information is populated
+		assert.NotNil(t, flatMsg.Indicator, "Should have Section 0")
+		assert.NotNil(t, flatMsg.Identification, "Should have Section 1")
+		assert.NotNil(t, flatMsg.GridDef, "Should have Section 3")
+		assert.NotNil(t, flatMsg.ProductDef, "Should have Section 4")
+		assert.NotNil(t, flatMsg.DataRepSec, "Should have Section 5")
+		assert.NotNil(t, flatMsg.Data, "Should have Section 7")
+		assert.NotNil(t, flatMsg.End, "Should have Section 8")
+
+		t.Logf("Flat message %d: Discipline=%d, Centre=%d, Product.Category=%d",
+			i, flatMsg.Discipline, flatMsg.Centre, flatMsg.Product.Category)
+	}
+}
+
+func TestReader_EachFlatMessage_EarlyStop(t *testing.T) {
+	testData := getTestData(t)
+	r := reader.NewReader(bytes.NewReader(testData))
+
+	var callCount int
+
+	err := r.EachFlatMessage(func(index int, flatMsg reader.FlatMessage) bool {
+		callCount++
+		return false // Stop immediately
+	})
+	require.NoError(t, err)
+
+	// Should have called only once and stopped
+	assert.Equal(t, 1, callCount)
+}

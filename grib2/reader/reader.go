@@ -65,6 +65,41 @@ func (r *Reader) EachMessage(fn func(int, MessageInfo) bool) error {
 	return nil
 }
 
+// EachFlatMessage iterates through all flattened messages in the GRIB2 file
+// Each nested message is flattened into multiple FlatMessage structs, one per data field
+// Return true to continue iteration, false to stop
+func (r *Reader) EachFlatMessage(fn func(int, FlatMessage) bool) error {
+	// First ensure we have read all sections
+	err := r.readAllSections()
+	if err != nil {
+		return err
+	}
+
+	// Build messages if not already done
+	if len(r.messages) == 0 {
+		err = r.buildMessages()
+		if err != nil {
+			return err
+		}
+	}
+
+	// Iterate through messages and flatten each one
+	flatIndex := 0
+	for _, msg := range r.messages {
+		flatMessages := msg.FlattenToFlatMessages()
+		for _, flatMsg := range flatMessages {
+			// Update the index to be sequential across all flat messages
+			flatMsg.Index = flatIndex
+			if !fn(flatIndex, flatMsg) {
+				return nil // Stop iteration if callback returns false
+			}
+			flatIndex++
+		}
+	}
+
+	return nil
+}
+
 // readAllSections reads all sections sequentially from the entire file
 func (r *Reader) readAllSections() error {
 	// Continue reading until EOF

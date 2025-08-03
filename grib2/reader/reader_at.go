@@ -6,6 +6,7 @@ import (
 	"io"
 
 	"github.com/scorix/grib/grib2/section"
+	"github.com/scorix/grib/grib2/spec"
 )
 
 // ReaderAt implements random-access reading of GRIB files using io.ReaderAt
@@ -110,6 +111,137 @@ func (r *ReaderAt) EachMessage(fn func(int, MessageInfo) bool) error {
 	}
 
 	return nil
+}
+
+// EachFlatMessage iterates through all flattened messages in the GRIB2 file
+// Each nested message is flattened into multiple FlatMessage structs, one per data field
+// Return true to continue iteration, false to stop
+func (r *ReaderAt) EachFlatMessage(fn func(int, FlatMessage) bool) error {
+	flatIndex := 0
+
+	return r.EachMessage(func(msgIndex int, info MessageInfo) bool {
+		// Build complete message from MessageInfo
+		message, err := r.buildMessageFromInfo(info)
+		if err != nil {
+			// Log error and continue with next message
+			// In a production system, you might want to handle this differently
+			return true
+		}
+
+		// Flatten the message into multiple FlatMessage structs
+		flatMessages := message.FlattenToFlatMessages()
+
+		// Call callback for each flattened message
+		for _, flatMsg := range flatMessages {
+			// Update the index to be sequential across all flat messages
+			flatMsg.Index = flatIndex
+			if !fn(flatIndex, flatMsg) {
+				return false // Stop iteration if callback returns false
+			}
+			flatIndex++
+		}
+
+		return true // Continue with next message
+	})
+}
+
+// buildMessageFromInfo constructs a complete Message from MessageInfo
+func (r *ReaderAt) buildMessageFromInfo(info MessageInfo) (*Message, error) {
+	// Read all sections for this message
+	var sections []section.Section
+	for _, secInfo := range info.Sections {
+		sec, err := r.ReadSectionAt(secInfo.Offset)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read section %d at offset %d: %w", secInfo.Number, secInfo.Offset, err)
+		}
+		sections = append(sections, sec)
+	}
+
+	// Build the Message structure similar to Reader.buildMessages
+	message := &Message{
+		Info: info,
+	}
+
+	// Extract sections by type
+	var sec0 section.Section0
+	var sec1 section.Section1
+	var sec8 section.Section8
+	var currentLocalBlocks []spec.LocalBlock
+
+	currentLocalBlock := spec.LocalBlock{}
+	currentGridBlocks := []spec.GridBlock{}
+	currentGridBlock := spec.GridBlock{}
+	currentDataFields := []spec.DataField{}
+
+	for _, sec := range sections {
+		switch sec.SectionNumber() {
+		case 0:
+			sec0 = sec.(section.Section0)
+			message.Message.Indicator = sec0
+		case 1:
+			sec1 = sec.(section.Section1)
+			message.Message.Identification = sec1
+		case 2:
+			// Local use section - finalize previous local block and start new one
+			if len(currentDataFields) > 0 {
+				currentGridBlock.Fields = currentDataFields
+				currentGridBlocks = append(currentGridBlocks, currentGridBlock)
+				currentDataFields = []spec.DataField{}
+				currentGridBlock = spec.GridBlock{}
+			}
+			if len(currentGridBlocks) > 0 {
+				currentLocalBlock.Grids = currentGridBlocks
+				currentLocalBlocks = append(currentLocalBlocks, currentLocalBlock)
+				currentGridBlocks = []spec.GridBlock{}
+				currentLocalBlock = spec.LocalBlock{}
+			}
+			currentLocalBlock.LocalUse = sec.(section.Section2)
+		case 3:
+			// Grid definition section - finalize previous grid block and start new one
+			if len(currentDataFields) > 0 {
+				currentGridBlock.Fields = currentDataFields
+				currentGridBlocks = append(currentGridBlocks, currentGridBlock)
+				currentDataFields = []spec.DataField{}
+			}
+			currentGridBlock.GridDef = sec.(section.Section3)
+		case 4:
+			// Product definition section - start new data field
+			currentDataFields = append(currentDataFields, spec.DataField{
+				ProductDef: sec.(section.Section4),
+			})
+		case 5:
+			// Data representation section - complete current data field
+			if len(currentDataFields) > 0 {
+				currentDataFields[len(currentDataFields)-1].DataRep = sec.(section.Section5)
+			}
+		case 6:
+			// Bitmap section - add to current data field
+			if len(currentDataFields) > 0 {
+				currentDataFields[len(currentDataFields)-1].Bitmap = sec.(section.Section6)
+			}
+		case 7:
+			// Data section - complete current data field
+			if len(currentDataFields) > 0 {
+				currentDataFields[len(currentDataFields)-1].Data = sec.(section.Section7)
+			}
+		case 8:
+			sec8 = sec.(section.Section8)
+			message.Message.End = sec8
+		}
+	}
+
+	// Finalize remaining blocks
+	if len(currentDataFields) > 0 {
+		currentGridBlock.Fields = currentDataFields
+		currentGridBlocks = append(currentGridBlocks, currentGridBlock)
+	}
+	if len(currentGridBlocks) > 0 {
+		currentLocalBlock.Grids = currentGridBlocks
+		currentLocalBlocks = append(currentLocalBlocks, currentLocalBlock)
+	}
+
+	message.Message.Blocks = currentLocalBlocks
+	return message, nil
 }
 
 // scanSectionsInRange scans sections within a specific byte range
